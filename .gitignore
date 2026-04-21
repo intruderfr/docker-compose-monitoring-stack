@@ -1,0 +1,27 @@
+# Local env overrides
+.env
+.env.local
+*.local
+
+# Docker volumes if anyone bind-mounts them
+data/
+prometheus_data/
+grafana_data/
+alertmanager_data/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor junk
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python (if anyone adds helper scripts)
+__pycache__/
+*.pyc
+venv/
+.venv/
