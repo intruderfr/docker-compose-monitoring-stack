@@ -1,0 +1,156 @@
+groups:
+
+  - name: host.rules
+    rules:
+
+      - alert: HostDown
+        expr: up{job="node-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host {{ $labels.instance }} is down"
+          description: "Node exporter on {{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+      - alert: HostHighCPU
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU on {{ $labels.instance }}"
+          description: "CPU utilisation is above 85% (current: {{ $value | humanize }}%) for over 10 minutes."
+
+      - alert: HostHighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory on {{ $labels.instance }}"
+          description: "Memory utilisation is above 90% (current: {{ $value | humanize }}%) for over 10 minutes."
+
+      - alert: HostDiskFillingUp
+        expr: |
+          (
+            1 - (
+              node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+              / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}
+            )
+          ) * 100 > 85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk filling up on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+          description: "Filesystem {{ $labels.mountpoint }} is above 85% used (current: {{ $value | humanize }}%)."
+
+      - alert: HostDiskCritical
+        expr: |
+          (
+            1 - (
+              node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+              / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}
+            )
+          ) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk almost full on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+          description: "Filesystem {{ $labels.mountpoint }} is above 95% used (current: {{ $value | humanize }}%)."
+
+      - alert: HostClockSkew
+        expr: abs(node_timex_offset_seconds) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Clock skew on {{ $labels.instance }}"
+          description: "Host clock is drifting by {{ $value | humanize }}s — check NTP."
+
+  - name: container.rules
+    rules:
+
+      - alert: ContainerHighCPU
+        expr: |
+          sum by (name, instance) (
+            rate(container_cpu_usage_seconds_total{name!=""}[5m])
+          ) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} using high CPU"
+          description: "Container {{ $labels.name }} has been using more than 80% of one CPU for 10 minutes (current: {{ $value | humanize }}%)."
+
+      - alert: ContainerHighMemory
+        expr: |
+          (container_memory_usage_bytes{name!=""}
+           / container_spec_memory_limit_bytes{name!=""}) * 100 > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} near memory limit"
+          description: "Container {{ $labels.name }} memory usage is above 90% of its limit (current: {{ $value | humanize }}%)."
+
+      - alert: ContainerRestarting
+        expr: changes(container_last_seen{name!=""}[15m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} restarting"
+          description: "Container {{ $labels.name }} has restarted more than 3 times in the last 15 minutes."
+
+  - name: blackbox.rules
+    rules:
+
+      - alert: BlackboxProbeFailed
+        expr: probe_success == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Probe failed for {{ $labels.instance }}"
+          description: "The blackbox probe to {{ $labels.instance }} ({{ $labels.job }}) has been failing for 5 minutes."
+
+      - alert: BlackboxSlowResponse
+        expr: probe_duration_seconds > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow probe response for {{ $labels.instance }}"
+          description: "{{ $labels.instance }} is responding in {{ $value | humanize }}s (threshold: 2s)."
+
+      - alert: BlackboxSSLCertExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 14
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS cert for {{ $labels.instance }} expires soon"
+          description: "Certificate for {{ $labels.instance }} expires in less than 14 days."
+
+  - name: prometheus.rules
+    rules:
+
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Target {{ $labels.job }}/{{ $labels.instance }} is down"
+          description: "Prometheus has been unable to scrape {{ $labels.job }} on {{ $labels.instance }} for 5 minutes."
+
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful != 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus config reload failed"
+          description: "Reloading Prometheus configuration on {{ $labels.instance }} failed."
