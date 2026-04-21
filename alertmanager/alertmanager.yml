@@ -1,0 +1,60 @@
+# Alertmanager routing configuration.
+#
+# By default this config logs received alerts to stdout via the "null" receiver
+# so the stack runs out of the box without any secrets. To actually deliver
+# alerts, uncomment one of the receivers below and set the matching env vars
+# (SLACK_WEBHOOK_URL, SMTP_*) or hard-code the values here.
+
+global:
+  resolve_timeout: 5m
+  smtp_require_tls: true
+
+templates:
+  - /etc/alertmanager/templates/*.tmpl
+
+route:
+  group_by: ['alertname', 'severity', 'instance']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+  receiver: 'default'
+  routes:
+    - matchers:
+        - severity = "critical"
+      receiver: 'default'
+      continue: true
+
+inhibit_rules:
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ['alertname', 'instance']
+
+receivers:
+
+  # Default receiver: drop-to-log. Safe out of the box.
+  - name: 'default'
+
+  # Uncomment to send to Slack.
+  # - name: 'slack'
+  #   slack_configs:
+  #     - send_resolved: true
+  #       api_url: '${SLACK_WEBHOOK_URL}'
+  #       channel: '#alerts'
+  #       title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}'
+  #       text: >-
+  #         {{ range .Alerts -}}
+  #           *{{ .Labels.severity | toUpper }}* {{ .Annotations.summary }}
+  #           {{ .Annotations.description }}
+  #         {{ end }}
+
+  # Uncomment to send email via SMTP.
+  # - name: 'email'
+  #   email_configs:
+  #     - to: 'ops@example.com'
+  #       from: 'alertmanager@example.com'
+  #       smarthost: 'smtp.example.com:587'
+  #       auth_username: 'alertmanager@example.com'
+  #       auth_password: '${SMTP_PASSWORD}'
+  #       require_tls: true
